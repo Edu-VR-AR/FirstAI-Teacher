@@ -11,13 +11,12 @@ from datetime import datetime
 
 import re
 
-# мягкий импорт RelationalTuner
+# мягкий импорт классов, которые патчим
 try:
     from modules.relational_tuner import RelationalTuner  # type: ignore
 except Exception:
     RelationalTuner = None  # type: ignore
 
-# мягкий импорт Expert (важно: через алиас, чтобы не падать на имени)
 try:
     from modules.expert import Expert as _ExpertClass  # type: ignore
 except Exception:
@@ -321,33 +320,33 @@ def _rt_embellish_patched(self,
     answer_data["answer_empathic"] = full_text
     return answer_data
 
-# ---- Безопасный патч RelationalTuner ----
-if RelationalTuner is not None:
-    try:
-        RelationalTuner.embellish = _rt_embellish_patched  # type: ignore[attr-defined]
-        print("✅ Sprint 5.2: objective signals integrated into RelationalTuner.embellish")
-    except Exception as e:
-        print(f"⚠️ RelationalTuner patch skipped: {e}")
-else:
-    print("⚠️ RelationalTuner not available; patch skipped")
+def _patch_runtime_hooks():
+    # ---- безопасный патч RelationalTuner.embellish ----
+    if RelationalTuner is not None:
+        try:
+            # _rt_embellish_patched должен быть объявлен выше в этом файле
+            RelationalTuner.embellish = _rt_embellish_patched  # type: ignore[attr-defined]
+            print("✅ Sprint 5.2: objective signals integrated into RelationalTuner.embellish")
+        except Exception as e:
+            print(f"⚠️ RelationalTuner patch skipped: {e}")
+    else:
+        print("⚠️ RelationalTuner not available; patch skipped")
 
-# ---- Безопасный патч Expert.respond ----
-if _ExpertClass is not None and hasattr(_ExpertClass, "respond"):
-    try:
-        _old_respond = _ExpertClass.respond  # type: ignore[attr-defined]
+    # ---- безопасный патч Expert.respond ----
+    if _ExpertClass is not None and hasattr(_ExpertClass, "respond"):
+        try:
+            _old_respond = _ExpertClass.respond  # type: ignore[attr-defined]
+            def _expert_respond_patched(self, context, *args, **kwargs):
+                return _old_respond(self, context, *args, **kwargs)
+            _ExpertClass.respond = _expert_respond_patched  # type: ignore[attr-defined]
+            print("✅ Expert.respond patched")
+        except Exception as e:
+            print(f"⚠️ Expert.respond patch skipped: {e}")
+    else:
+        print("⚠️ Expert.respond not found; patch skipped")
 
-        def _expert_respond_patched(self, context, *args, **kwargs):
-            # тут можешь оставить свою доп.логику; по умолчанию просто вызываем оригинал
-            return _old_respond(self, context, *args, **kwargs)
-
-        _ExpertClass.respond = _expert_respond_patched  # type: ignore[attr-defined]
-        print("✅ Expert.respond patched")
-    except Exception as e:
-        print(f"⚠️ Expert.respond patch skipped: {e}")
-else:
-    print("⚠️ Expert.respond not found; patch skipped")
-
-print("✅ Sprint 5.2: objective signals integrated into RelationalTuner.embellish")
+# вызвать ОДИН раз
+_patch_runtime_hooks()
 
 # ================================
 # 🧩 Patch: Empathy inside Expert
@@ -386,9 +385,6 @@ def _detect_situation_for_empathy(user_text: str, context: 'Context') -> str:
         except NameError:
             return "start"
 
-# 2) Патчим только «хвост» Expert.respond: после сборки answer_data → добавляем эмпатию
-_old_respond = Expert.respond
-
 def _respond_with_empathy(self, question: str, context: 'Context') -> dict:
     # вызываем оригинальную реализацию (с RAG, памятью, тоном/уровнем и метриками 5.4)
     answer_data = _old_respond(self, question, context)
@@ -424,9 +420,6 @@ def _respond_with_empathy(self, question: str, context: 'Context') -> dict:
         pass
 
     return enriched
-
-# применяем патч
-Expert.respond = _respond_with_empathy
 
 print("✅ Empathy integrated: Expert.respond теперь возвращает answer_empathic + empathy")
 
@@ -514,9 +507,6 @@ def _respond_with_latency(self, question: str, context: 'Context') -> dict:
 
     return answer
 
-# применяем патч
-Expert.respond = _respond_with_latency
-
 print("✅ Latency tracking integrated: ответ теперь включает latency_sec и latency_avg_sec; метрики скорректированы.")
 
 # ===============================
@@ -595,9 +585,6 @@ def _respond_with_latency_fixed(self, question: str, context: 'Context') -> dict
             pass
 
     return answer
-
-# применяем фикс
-Expert.respond = _respond_with_latency_fixed
 
 print("✅ Latency fix applied: last_interaction_time обновляется после исходного respond; темп подстраивается по средней латентности.")
 
@@ -768,9 +755,6 @@ def _expert_respond_unified(self, question: str, context: 'Context') -> dict:
     context.progress["RelationalTuner"]["last"] = enriched.get("empathy")
 
     return enriched
-
-# Подменяем метод класса на консолидированный
-Expert.respond = _expert_respond_unified
 
 print("✅ Expert.respond заменён на единый вариант (без обёрток): RAG + память + уровни/тон + эмпатия + latency.")
 
