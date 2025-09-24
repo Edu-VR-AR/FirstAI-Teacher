@@ -1,0 +1,14 @@
+# Базовые зависимости
+numpy
+scikit-learn
+rich
+pdfminer.six
+PyPDF2
+
+# Для TTS / речи (по желанию)
+pyttsx3
+pyaudio
+vosk
+
+# Для логирования и консольного интерфейса
+loguru
