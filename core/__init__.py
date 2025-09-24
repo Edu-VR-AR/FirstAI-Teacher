@@ -1,4 +1,5 @@
 # core/__init__.py
+from __future__ import annotations
 
 import os
 import glob
@@ -9,6 +10,18 @@ from pathlib import Path
 from datetime import datetime
 
 import re
+
+# мягкий импорт RelationalTuner
+try:
+    from modules.relational_tuner import RelationalTuner  # type: ignore
+except Exception:
+    RelationalTuner = None  # type: ignore
+
+# мягкий импорт Expert (важно: через алиас, чтобы не падать на имени)
+try:
+    from modules.expert import Expert as _ExpertClass  # type: ignore
+except Exception:
+    _ExpertClass = None  # type: ignore
 
 def extract_knowledge_types(docs: list) -> dict:
     facts = []
@@ -308,8 +321,31 @@ def _rt_embellish_patched(self,
     answer_data["answer_empathic"] = full_text
     return answer_data
 
-# применяем патч
-RelationalTuner.embellish = _rt_embellish_patched
+# ---- Безопасный патч RelationalTuner ----
+if RelationalTuner is not None:
+    try:
+        RelationalTuner.embellish = _rt_embellish_patched  # type: ignore[attr-defined]
+        print("✅ Sprint 5.2: objective signals integrated into RelationalTuner.embellish")
+    except Exception as e:
+        print(f"⚠️ RelationalTuner patch skipped: {e}")
+else:
+    print("⚠️ RelationalTuner not available; patch skipped")
+
+# ---- Безопасный патч Expert.respond ----
+if _ExpertClass is not None and hasattr(_ExpertClass, "respond"):
+    try:
+        _old_respond = _ExpertClass.respond  # type: ignore[attr-defined]
+
+        def _expert_respond_patched(self, context, *args, **kwargs):
+            # тут можешь оставить свою доп.логику; по умолчанию просто вызываем оригинал
+            return _old_respond(self, context, *args, **kwargs)
+
+        _ExpertClass.respond = _expert_respond_patched  # type: ignore[attr-defined]
+        print("✅ Expert.respond patched")
+    except Exception as e:
+        print(f"⚠️ Expert.respond patch skipped: {e}")
+else:
+    print("⚠️ Expert.respond not found; patch skipped")
 
 print("✅ Sprint 5.2: objective signals integrated into RelationalTuner.embellish")
 
@@ -319,23 +355,26 @@ print("✅ Sprint 5.2: objective signals integrated into RelationalTuner.embelli
 import random
 
 # 0) Страховка: если тюнер ещё не создан — создадим
-try:
-    tuner
-except NameError:
-    try:
-        tuner = RelationalTuner(default_tone="warm", position="auto")
-    except NameError:
-        # если класс ещё не импортирован — минимальная заглушка,
-        # но в твоём проекте RelationalTuner уже есть из 5.1
-        class _DummyTuner:
-            def embellish(self, answer_data, context, user_text=None, tone_override=None, position=None):
-                # без тюнера просто возвращаем как есть
-                answer_data["answer_empathic"] = answer_data.get("answer", "")
-                answer_data["empathy"] = {
-                    "situation": "start", "tone": "warm", "intro": None, "outro": None
-                }
-                return answer_data
-        tuner = _DummyTuner()
+# Глобальный «ленивый» доступ к тюнеру
+tuner = None  # тип: RelationalTuner | _RelationalTunerStub | None
+
+class _RelationalTunerStub:
+    """Простейшая заглушка: возвращает текст без украшательств."""
+    def embellish(self, text: str, **kwargs) -> str:
+        return text
+
+def get_relational_tuner():
+    global tuner
+    if tuner is not None:
+        return tuner
+    if RelationalTuner is not None:
+        try:
+            tuner = RelationalTuner(default_tone="warm", position="auto")
+            return tuner
+        except Exception as e:
+            print(f"⚠️ Couldn't instantiate RelationalTuner, using stub: {e}")
+    tuner = _RelationalTunerStub()
+    return tuner
 
 # 1) Страховка: смешанный детектор ситуаций (из 5.2). Если нет — fallback на текстовый.
 def _detect_situation_for_empathy(user_text: str, context: 'Context') -> str:

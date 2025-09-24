@@ -43,6 +43,11 @@ class Expert:
         text = " ".join(snippets) if snippets else "Пока нет подходящих материалов в базе."
         return text, src
 
+    # упрощённый интерфейс для совместимости с патчем и старым кодом
+    def respond(self, context: Context) -> str:
+        data = self.process(context)
+        return data.get("answer", "")
+
     def process(self, context: Context) -> Dict:
         q = context.last_user_question or "Расскажи кратко по теме."
         mode = self._classify(q)
