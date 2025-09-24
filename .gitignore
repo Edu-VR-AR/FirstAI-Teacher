@@ -1,0 +1,25 @@
+# Python
+venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.dist-info/
+.egg-info/
+.build/
+dist/
+build/
+*.log
+
+# Jupyter / VS Code
+.ipynb_checkpoints/
+.vscode/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# OS junk
+.DS_Store
+Thumbs.db
