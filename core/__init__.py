@@ -22,6 +22,12 @@ try:
 except Exception:
     RelationalTuner = None  # type: ignore
 
+# безопасный импорт Expert для legacy-блоков
+try:
+    from modules.expert import Expert  # прямой импорт имени для старого кода
+except Exception:
+    Expert = None  # чтобы не падать на NameError
+
 def extract_knowledge_types(docs: list) -> dict:
     facts = []
     procedures = []
@@ -866,7 +872,11 @@ kb = KnowledgeBase()
 kb.load("Цифровая культура")
 
 # 2. Создание Expert и FSM
-expert = Expert(kb)
+# не создаём Expert, если класс недоступен на момент импорта
+try:
+    expert  # уже был определён где-то выше?
+except NameError:
+    expert = (Expert(kb) if Expert is not None else None)
 ctx = Context(
     discipline="Цифровая культура",
     lesson_number=2,
