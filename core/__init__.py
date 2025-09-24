@@ -13,14 +13,14 @@ import re
 
 # мягкий импорт классов, которые патчим
 try:
-    from modules.relational_tuner import RelationalTuner  # type: ignore
-except Exception:
-    RelationalTuner = None  # type: ignore
-
-try:
     from modules.expert import Expert as _ExpertClass  # type: ignore
 except Exception:
     _ExpertClass = None  # type: ignore
+
+try:
+    from modules.relational_tuner import RelationalTuner  # type: ignore
+except Exception:
+    RelationalTuner = None  # type: ignore
 
 def extract_knowledge_types(docs: list) -> dict:
     facts = []
@@ -444,8 +444,18 @@ def _ensure_latency_buffer(context: 'Context'):
     if "latency_buffer" not in context.progress["Expert"]:
         context.progress["Expert"]["latency_buffer"] = deque(maxlen=LAT_WINDOW_N)
 
-# патчим Expert.respond — перехватываем «хвост»
-_old_expert_respond_latency = Expert.respond
+if _ExpertClass is not None and hasattr(_ExpertClass, "respond"):
+    try:
+        _old_expert_respond_latency = _ExpertClass.respond  # type: ignore[attr-defined]
+        def _respond_latency_patched(self, context, *args, **kwargs):
+            # если нужна логика по latency — добавишь позже; сейчас просто прокидываем
+            return _old_expert_respond_latency(self, context, *args, **kwargs)
+        _ExpertClass.respond = _respond_latency_patched  # type: ignore[attr-defined]
+        print("✅ Expert.respond (latency) patched")
+    except Exception as e:
+        print(f"⚠️ Expert.respond (latency) patch skipped: {e}")
+else:
+    print("⚠️ Expert.respond not found; latency patch skipped")
 
 def _respond_with_latency(self, question: str, context: 'Context') -> dict:
     # 1) до вызова оригинала — измеряем задержку
@@ -528,9 +538,6 @@ def _ensure_latency_buffer(context: 'Context'):
     context.progress.setdefault("Expert", {})
     if "latency_buffer" not in context.progress["Expert"]:
         context.progress["Expert"]["latency_buffer"] = deque(maxlen=LAT_WINDOW_N)
-
-# сохранём ссылку на текущий Expert.respond (с эмпатией и т.п.)
-_old_expert_respond_latency = Expert.respond
 
 def _respond_with_latency_fixed(self, question: str, context: 'Context') -> dict:
     # 1) измеряем реальную задержку БЕЗ изменения last_interaction_time
