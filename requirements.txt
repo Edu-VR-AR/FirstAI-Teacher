@@ -1,3 +1,8 @@
+# Обновление:
+numpy>=1.26
+scikit-learn>=1.3
+nltk>=3.8
+
 # Базовые зависимости
 numpy
 scikit-learn

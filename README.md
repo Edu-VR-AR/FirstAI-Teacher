@@ -17,7 +17,7 @@ python -m venv venv
 
 **Windows:**
 ```bash
-.env\Scriptsctivate
+.\venv\Scripts\activate
 ```
 
 **Mac/Linux:**
@@ -32,6 +32,15 @@ pip install -r requirements.txt
 
 ### 5. Запусти проект
 ```bash
+python main.py
+```
+
+### Общий порядок запуска:
+```
+python -m venv venv
+.\venv\Scripts\activate
+pip install --upgrade pip
+pip install -r requirements.txt
 python main.py
 ```
 
